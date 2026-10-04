@@ -1,0 +1,511 @@
+---
+title: "Week 3 Assessment"
+author: "Ida M. de Oliveira"
+date: "2026-09-27"
+output: 
+    
+  pdf_document:
+    toc: true
+    toc_depth: 2
+    highlight: tango
+    number_sections: true
+  html_document:
+    df_print: paged
+    toc: true
+    toc_float: true
+    toc_depth: 2
+    highlight: tango
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE, 
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 7,
+  fig.height = 4.5,
+  fig.align = "center",
+  out.width = "90%"
+  )
+
+library("pacman")
+pacman::p_load(
+  rio, here, tidyverse, knitr, kableExtra, skimr, formatR, gridExtra,
+  janitor, ggplot2, dplyr, readr, cowplot, ggpubr, RColorBrewer, viridis
+)
+```
+
+# Overview & Dataset Introduction
+The original datasets were obtained from the National Health and Nutrition Examination Survey (NHANES). 
+
+In this report, we are using a cleaned version of the NHANES dataset, `cleaned_NHANES.csv`, which includes Demographic Data and Blood Pressure Data across three NHANES survey cycles: 2013-2014, 2015-2016, 2017-2018.
+
+
+```{r import}
+# Import the cleaned dataset
+nhanes_clean <- import(here("data", "cleaned_NHANES.csv"))
+
+# Import diet dataset
+diet_study <- import(here("data", "diet.csv"))
+
+```
+
+
+
+# **Exercise 1** - Reproducing and arranging ggplot2 figures
+
+Using the ggplot() function, we recreated the two figures displayed below. The provided figures used the original NHANES variable names and raw values. The versions presented below use the descriptive column names and category labels from the cleaned dataset. 
+
+```{r}
+
+# Figure 1: Age distribution by Gender (5-year bin width)
+p1 <- ggplot(nhanes_clean, aes(x = age, fill = gender)) +
+  geom_histogram(binwidth = 5, position = "dodge") +
+  labs(
+    x = "Age (years)",
+    y = "count",
+    fill = "Gender"
+  )
+
+# Figure 2: Relative proportion of Gender across Ethnicity groups
+p2 <- ggplot(nhanes_clean, aes(x = ethnicity_2, fill = gender)) +
+  geom_bar(position = "fill") +
+  labs(
+    x = "Race / Ethnicity",
+    y = "count",
+    fill = "Gender"
+  )
+
+# Multi-Panel Plot Arrangements
+# Combined using cowplot
+p1_p2_cowplot_combined <- plot_grid(
+  p1, p2,
+  rel_widths = c(1, 1),
+  nrow = 1, ncol = 2
+)
+p1_p2_cowplot_combined
+
+# Combined using ggpubr with shared legend
+p1_p2_ggpubr_combined <- ggarrange(
+  p1, p2,
+  ncol = 2, nrow = 1,
+  common.legend = TRUE,
+  legend = "top"
+)
+p1_p2_ggpubr_combined
+```
+
+When comparing `plot_grid()` from cowplot and `ggarrange()` from ggpubr, both tools successfully generate clean multi-panel figures, but `ggarrange()` produces a superior presentation for this specific pair of plots. The primary advantage of `ggarrange()` is its built-in common legend through the `common.legend = TRUE` argument, which automatically extracts and merges identical legends into a single centered legend block, here positioned at the top. This eliminates redundant legend entries, maximises the available plotting area, and provides a cleaner aesthetic with better use of space.
+
+
+
+# **Exercise 2** - Visualizing key characteristics
+
+The NHANES dataset used in this report (`cleaned_NHANES.csv`) has two variables representing ethnicity. In the current exercise, we will explore the distribution of key variables using appropriate plots and descriptive summaries.
+
+Each plot was given a meaningful title and appropriate axis labels. Legends were omitted from these plots because the axis labels and titles are sufficiently descriptive.
+
+```{r}
+# 1. Distribution of Age
+p_age <- ggplot(nhanes_clean, aes(x = age)) +
+  geom_histogram(binwidth = 5, fill = "deepskyblue4", color = "white", boundary = 0) +
+  labs(
+    title = "Age Distribution of NHANES Participants (2013-2018)",
+    x = "Age (Years)",
+    y = "Participant Count"
+  ) 
+p_age 
+
+ggsave("plot_age.png", 
+       plot = p_age, 
+       path = here("figures", "Assessment3"), 
+       width = 7, height = 4.5, dpi = 300
+       )
+
+```
+
+**Age** Distribution: Ages range from 0 to 80 years. The distribution is multi-modal, with a distinct spike in young children (ages 0–10). Missing Values: None.
+ 
+```{r}
+# 2. Distribution of Gender
+p_gender <- ggplot(nhanes_clean, aes(x = gender, fill = gender)) +
+  geom_bar(width = 0.5) +
+  scale_fill_manual(values = c("Male" = "#56B4E9", "Female" = "#CC79A7")) +
+  labs(
+    title = "Gender Distribution of NHANES Participants",
+    x = "Biological Sex / Gender",
+    y = "Participant Count",
+    fill = "Gender"
+  ) +
+  theme_minimal()+
+  theme (
+    axis.text.x = element_text(color = "black", size = 12), 
+    axis.text.y = element_text(color = "black", size = 8), 
+    legend.position = "none"
+  )
+p_gender
+
+ggsave(
+  "plot_gender.png", 
+  plot = p_gender, 
+  path = here("figures", "Assessment3"), 
+  width = 6, height = 4.5, dpi = 300
+  )
+
+```
+
+**Gender** Distribution: Nearly balanced between both groups. Females account for 14,948 participants, while males account for 14,452 participants. Missing Values: None.
+
+```{r}
+# 3. Distribution of Ethnicity 1 (RIDRETH1) and Ethnicity 2 (RIDRETH3)
+
+# Distribution of Ethnicity 1
+p_eth1 <- ggplot(nhanes_clean, aes(x = ethnicity_1, fill = ethnicity_1)) +
+  geom_bar(show.legend = FALSE) +
+  scale_fill_manual(values = c(
+    "Black"          = "#0072B2", 
+    "White"          = "#009E73", 
+    "Mexican"        = "#D55E00",
+    "Other Hispanic" = "#E69F00", 
+    "Other"          = "#999999")
+    )+
+  labs(
+    title = "Distribution of Race/Ethnicity 1",
+    x = "Race / Ethnicity Group",
+    y = "Participant Count"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(color = "black", size = 12, angle = 35, hjust = 1),
+    plot.title  = element_text(face = "bold", size = 14)
+    )
+
+ggsave(
+  "plot_ethnicity_1.png", 
+  plot = p_eth1,   
+  path = here("figures", "Assessment3"), 
+  width = 7, height = 4.5
+  )
+
+# Distribution of Ethnicity 2
+p_eth2 <- ggplot(nhanes_clean, aes(x = ethnicity_2, fill = ethnicity_2)) +
+  geom_bar(show.legend = FALSE) +
+  scale_fill_manual(values = c(
+    "Black"          = "#0072B2", 
+    "White"          = "#009E73", 
+    "Mexican"        = "#D55E00",
+    "Other Hispanic" = "#E69F00",
+    "Asian"          = "#CC79A7",
+    "Other"          = "#999999")
+  )+
+  labs(
+    title = "Distribution of Race/Ethnicity 2",
+    x = "Race / Ethnicity Group",
+    y = "Participant Count"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(color = "black", size = 12, angle = 35, hjust = 1),
+    plot.title  = element_text(face = "bold", size = 14)
+  )
+
+ggsave(
+  "plot_ethnicity_2.png", 
+  plot = p_eth2, 
+  path = here("figures", "Assessment3"), 
+  width = 7, height = 4.5
+)
+
+# Distribution of Ethnicity Combined
+p_combined_eth <- plot_grid(
+  p_eth1, p_eth2, 
+  labels = c("A", "B"), 
+  ncol = 2
+)
+print(p_combined_eth)
+
+ggsave(
+  "combined_ethnicity.png", 
+  plot = p_combined_eth, 
+  path = here("figures", "Assessment3"),
+  width = 11, height = 5)
+```
+
+**Ethnicity 1** (RIDRETH1) Distribution: Categorizes participants into 5 broad groups: Non-Hispanic White (9,890), Non-Hispanic Black (6,511), Mexican American (5,018), Other / Multi-Racial (4,893), and Other Hispanic (3,088).Missing Values: 0 missing values.
+
+**Ethnicity 2** (RIDRETH3): Distribution: Categorizes participants into 6 distinct groups: Non-Hispanic White (9,890), Non-Hispanic Black (6,511), Mexican American (5,018), Non-Hispanic Asian (3,284), Other Hispanic (3,088), and Other / Multi-Racial (1,609).Missing Values: 0 missing values.
+
+**Comparison of Ethnicity Variables & Variable Selection**
+Ethnicity_1 (RIDRETH1) uses 5-category NHANES classification. In this classification, Non-Hispanic Asian participants are merged into the catch-all "Other / Multi-Racial" category. Ethnicity_2 (RIDRETH3) explicitly isolates Non-Hispanic Asian participants as an independent demographic group, reducing the non-specific "Other" category.
+
+If one variable were to be retained, I would keep ethnicity_2 (RIDRETH3) and discard ethnicity_1 (RIDRETH1). Ethnicity_2 provides higher granularity and demographic accuracy by disaggregating Asian Americans from the "Other" category. This allows for better assessment of health and blood pressure disparities across population subgroups.
+
+
+# **Exercise 3** -  Improving ggplot figure
+
+In this exercise, we used data from a small study designed to evaluate the benefit of a new diet in reducing body weight over a period of 4 months. Data for participants who followed the diet were provided in a file named `diet. csv`.
+Our goal was to create a figure that clearly shows how each participant's weight has changed over time, specifically relative to their baseline weight at Week 0. We also aimed to identify and describe aspects of the original figure that could be improved. 
+
+```{r}
+# Import diet dataset
+diet_data <- import(here("data", "diet.csv"))
+```
+
+
+Improvements needed in the figure:
+
+* Visual Clutter: Mapping 20 distinct participants to 20 individual line colors creates a visual clutter. The color legend on the right takes up significant space without providing analytical value, and distinguishing among 20 subtle colour hues is difficult. 
+
+* Absolute Weight: Because participants start at vastly different baseline weights (ranging from around 65 kg to 100 kg), it is difficult to assess from the plot whether individual trajectories reflect meaningful weight changes to where they started.
+
+To address these issues, I created two alternative figures. In both figures, the baseline is clearly highlighted.
+
+```{r}
+# Calculate weight change relative to baseline (Week 0)
+diet_data <- diet_data %>%
+  group_by(Participant) %>%
+  mutate(Weight_Change = Weight - Weight[Week == 0],
+         Final_Weight = Weight_Change[Week == 16]) %>%
+  ungroup()
+
+# Create graphic with horizontal dashed line representing baseline (0 change)
+ggplot(diet_data, aes(x = Week, y = Weight_Change, color = Final_Weight, group = Participant)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black", linewidth = 0.5) +
+  geom_line(linewidth = 0.5) +
+  geom_point(size = 1.2) +
+  scale_color_viridis(
+    option = "viridis", 
+    direction = -1,  
+    name = "Total Change (kg)"
+  ) +
+  labs(
+    title = "Participant weight trajectories over 16 weeks",
+    subtitle = "Weight change calculated relative to week 0 baseline",
+    x = "Time (Weeks)",
+    y = "Weight change from baseline (kg)",
+    color = "Participant ID"
+  ) +
+  scale_x_continuous(breaks = seq(0, 16, by = 2)) +
+  theme_minimal()
+
+```
+
+In the figure above, the data were normalised by calculating each participant's weekly weight change relative to their Week 0 weight. Additionally, a horizontal reference line was added at y = 0 to provide an immediate visual threshold: lines dipping below the reference indicate weight loss, while lines staying above represent weight gain. Replacing arbitrary categorical colors with a diverging color scale (Viridis scale) linked to Week 16 outcomes instantly highlights overall efficacy without cluttering the legend.
+
+While the longitudinal line plot effectively tracks progress over time, it does not reveal whether a participant's starting weight influenced their ultimate success on the diet. Synthesizing 340 observation points down to 20 participant-level summary pairs (Baseline Weight vs. Net Weight Change at Week 16) eliminates line overlap and isolates the overall treatment effect, as shown in Figure 2 below.
+
+```{r}
+# Scatter Plot to Compare Baseline vs. Final Outcome
+final_summary <- diet_data %>%
+  group_by(Participant) %>%
+  summarise(
+    Starting_Weight = Weight[Week == 0],
+    Total_Weight_Change = Weight[Week == 16] - Weight[Week == 0]
+  )
+
+ggplot(final_summary, aes(x = Starting_Weight, y = Total_Weight_Change,)) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_point(size = 4, color = "darkolivegreen") +
+  labs(
+    title = "Starting weight (Week 0) vs. Total weight change at week 16",
+    subtitle = "16-week diet intervention outcome by participant baseline weight",
+    x = "Baseline Weight (kg)",
+    y = "Net change from baseline (kg)"
+  ) +
+  theme_minimal() +
+  theme(axis.line.x = element_line(linewidth = 0.5), 
+        axis.line.y = element_line(linewidth = 0.5))
+
+```
+
+
+
+#  **Exercise 4** - Exploring relationships through visualizations
+
+The objective of this exercise was to explore the relationships among age, gender, and systolic blood pressure (SBP) through a concise report supported by effective data visualisation.
+
+
+
+# Demographic Measures and Systolic Blood Pressure Relations: NHANES Dataset (2013-2018)
+
+This report examines the relationships between age, gender, and average systolic blood pressure using data combined from three NHANES survey cycles.
+
+
+## Data Preparation and Cleaning Pipeline
+
+```{r}
+# Import dataset
+nhanes_clean <- import(here("data", "cleaned_NHANES.csv"))
+```
+
+The initial survey sample consisted of 29,400 participants. 
+
+```{r}
+# Calculate Average SBP across all available readings
+nhanes_prep <- nhanes_clean %>% 
+  rowwise() %>% 
+  mutate(
+    avg_sbp = mean(
+      c_across(starts_with("systolic_bp_")),
+      na.rm = TRUE
+    )
+  ) %>% 
+  ungroup()
+
+
+# Filter complete cases for age, gender, and avg_sbp
+final_nhanes_sample <- nhanes_prep %>% 
+  filter(!is.na(age), !is.na(gender), !is.na(avg_sbp))
+
+```
+
+An average systolic blood pressure (SBP) variable was derived by taking the mean of four consecutive blood pressure readings per participant. Participants were retained if at least one valid blood pressure reading was available. After filtering for complete records with non-missing values across age, gender, and average SBP, the final analytic sample comprised 21,604 participants (a reduction of 7,796 individuals). SBP categories were then created to classify the blood pressure readings.
+
+```{r}
+# SBP categories according to average SBP
+final_nhanes_sample <- final_nhanes_sample %>%
+  mutate(
+    sbp_category = cut(
+      avg_sbp,
+      breaks = c(-Inf, 120, 130, 140, Inf),
+      labels = c(
+        "Normal",
+        "Elevated",
+        "Stage 1 hypertension",
+        "Stage 2 hypertension"
+      ),
+      right = FALSE
+    )
+  )
+```
+
+
+## Subgroup Analysis and Outputs
+
+Comparative analysis `(p_gender_comparison)` confirms that the overall gender distributions remain consistent between the initial and final datasets, indicating that missingness did not introduce obvious demographic skew for this category.
+However, the removal of participants with missing blood pressure data slightly altered the age distribution of the sample. Children younger than 8 years of age do not typically undergo the standard four blood pressure measurements collected in NHANES, accounting for the vast majority of dropped records.Consequently, the proportion of participants in the youngest age category (0–17 years) dropped in the final sample.
+
+```{r}
+
+# Plot: Comparison of Gender Distribution (Reused from Exercise 2)
+p_gender <- ggplot(nhanes_clean, aes(x = gender, fill = gender)) +
+  geom_bar(width = 0.5) +
+  scale_fill_manual(values = c("Male" = "#56B4E9", "Female" = "#CC79A7")) +
+  labs(
+    title = "Gender Distribution of NHANES Participants",
+    x = "Biological Sex / Gender",
+    y = "Participant Count",
+    fill = "Gender"
+  ) +
+  theme_minimal()+
+  theme (
+    axis.text.x = element_text(color = "black", size = 12), 
+    axis.text.y = element_text(color = "black", size = 8), 
+    legend.position = "none"
+  )
+
+p_genderfinal <- ggplot(final_nhanes_sample, aes(x = gender, fill = gender)) +
+  geom_bar(width = 0.5) +
+  scale_fill_manual(values = c("Male" = "#0072B2", "Female" = "#D55E00")) +
+  scale_y_continuous(breaks = seq(0, 15000, by = 5000)) +
+    labs(
+    title = "Gender Distribution in Final Sample",
+    x = "Biological Sex / Gender",
+    y = "Participant Count",
+    fill = "Gender"
+  ) +
+  theme_minimal()+
+  theme (
+    axis.text.x = element_text(color = "black", size = 12), 
+    axis.text.y = element_text(color = "black", size = 8), 
+    legend.position = "none"
+  )
+
+p_gender_comparison <- plot_grid(p_gender, p_genderfinal, ncol = 2, labels = c("A", "B"))
+p_gender_comparison 
+
+# Comparison of Age Distribution (Reused from Exercise 2)
+p_age_initial <- ggplot(nhanes_clean, aes(x = age)) +
+  geom_histogram(binwidth = 5, fill = "#2b5c8f", color = "white", boundary = 0) +
+  scale_y_continuous(breaks = seq(0, 5000, by = 500)) +
+  scale_x_continuous(breaks = seq(0, 90, by = 10)) +
+  labs(
+    title = "Age Distribution", 
+    subtitle = "Initial Sample (N = 29,400)", x = "Age (Years)", y = "Participant Count"
+    ) +
+  theme_minimal() +
+  theme(axis.text = element_text(color = "black"))
+
+p_age_final <- ggplot(final_nhanes_sample, aes(x = age)) +
+  geom_histogram(binwidth = 5, fill = "#0072B2", color = "white", boundary = 0) +
+  scale_y_continuous(breaks = seq(0, 5000, by = 500)) +
+  scale_x_continuous(breaks = seq(0, 90, by = 10)) +
+    labs(
+    title = "Age Distribution",
+    subtitle = "Final Analytic Sample (N = 21,604)", 
+    x = "Age (Years)", 
+    y = "Participant Count"
+    ) +
+  theme_minimal() +
+  theme(axis.text = element_text(color = "black"))
+
+p_age_comparison <- plot_grid(p_age_initial, p_age_final, ncol = 2, labels = c("A", "B"))
+p_age_comparison
+```
+
+Within the study population, the majority of participants were classified as having normal systolic blood pressure according to the SBP categories defined in this report.
+
+1. Normal SBP (< 120 mm Hg): 12,289 participants ($56.9\%$).
+2. Elevated SBP (120–129 mm Hg): 3,845 participants ($17.8\%$).
+3. Stage 1 Hypertension (130–139 mm Hg): 2,487 participants ($11.5\%$).
+4. Stage 2 Hypertension ($\ge$ 140 mm Hg): 2,983 participants ($13.8\%$).
+
+
+```{r}
+# Plot - Hypertension Category Counts
+p_hypertension_counts <- ggplot(final_nhanes_sample, aes(x = sbp_category, fill = sbp_category)) +
+geom_bar(show.legend = FALSE) +
+  scale_fill_manual(values = c(
+    "Normal"               = "darkseagreen2",
+    "Elevated"             = "darkseagreen4",
+    "Stage 1 hypertension" = "darkorange",
+    "Stage 2 hypertension" = "red"
+    )) +
+  labs(title = "Distribution of Systolic Blood Pressure Categories", x = "Blood Pressure Category", y = "Participant Count") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(color = "black", face = "bold", size = 12),
+    axis.text.y = element_text(color = "black", size = 8),
+    plot.title = element_text(face = "bold", size = 14)
+    )
+p_hypertension_counts
+
+# Plot Prevalence of Hypertension Categories Across Age Groups by Gender
+p_sbpcat_age <- ggplot(final_nhanes_sample, aes(x = age_cat, fill = sbp_category)) +
+  geom_bar(position = "dodge") +
+  facet_wrap(~ gender) +
+  scale_fill_manual(
+    values = c(
+      "Normal"               = "lightblue",
+      "Elevated"             = "darkseagreen",
+      "Stage 1 hypertension" = "orange",
+      "Stage 2 hypertension" = "red"
+    )
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid.minor = element_blank(),
+    strip.text = element_text(face = "bold", size = 12),
+    plot.title = element_text(face = "bold", size = 14)
+  ) +
+  labs(
+    title = "Prevalence of Hypertension Categories Across Age Groups by Gender",
+    x = "Age Group (Years)",
+    y = "Individual Counts",
+    fill = "SBP Category"
+  )
+p_sbpcat_age
+
+```
+
+Examining SBP categories across age groups `(age_cat)` and biological sex reveals the expected epidemiological trend: the proportion of participants in Stage 1 and Stage 2 Hypertension increases progressively with advancing age across both male and female cohorts. Among participants aged 60 years and older, the proportion with normal SBP declines, while Stage 2 Hypertension becomes the dominant pathological group. Males aged 18–39 exhibit higher proportions of "Elevated" and "Stage 1 hypertension" compared to age-matched females.
