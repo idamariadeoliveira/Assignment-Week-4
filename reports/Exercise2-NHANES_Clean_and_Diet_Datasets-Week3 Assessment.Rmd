@@ -3,18 +3,15 @@ title: "Week 3 Assessment"
 author: "Ida M. de Oliveira"
 date: "2026-09-27"
 output: 
-    
-  pdf_document:
-    toc: true
-    toc_depth: 2
-    highlight: tango
-    number_sections: true
   html_document:
     df_print: paged
     toc: true
-    toc_float: true
-    toc_depth: 2
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+    toc_depth: 3
     highlight: tango
+    theme: flatly
 ---
 
 ```{r setup, include=FALSE}
@@ -31,7 +28,7 @@ knitr::opts_chunk$set(
 library("pacman")
 pacman::p_load(
   rio, here, tidyverse, knitr, kableExtra, skimr, formatR, gridExtra,
-  janitor, ggplot2, dplyr, readr, cowplot, ggpubr, RColorBrewer, viridis
+  janitor, ggplot2, dplyr, readr, cowplot, ggpubr, RColorBrewer, viridis, DT
 )
 ```
 
@@ -52,9 +49,11 @@ diet_study <- import(here("data", "diet.csv"))
 
 
 
-# **Exercise 1** - Reproducing and arranging ggplot2 figures
+# **Exercise 1** - Reproducing and arranging ggplot2 figures {.tabset} 
 
 Using the ggplot() function, we recreated the two figures displayed below. The provided figures used the original NHANES variable names and raw values. The versions presented below use the descriptive column names and category labels from the cleaned dataset. 
+
+## Individual Figures
 
 ```{r}
 
@@ -66,6 +65,7 @@ p1 <- ggplot(nhanes_clean, aes(x = age, fill = gender)) +
     y = "count",
     fill = "Gender"
   )
+p1
 
 # Figure 2: Relative proportion of Gender across Ethnicity groups
 p2 <- ggplot(nhanes_clean, aes(x = ethnicity_2, fill = gender)) +
@@ -75,8 +75,13 @@ p2 <- ggplot(nhanes_clean, aes(x = ethnicity_2, fill = gender)) +
     y = "count",
     fill = "Gender"
   )
+p2
 
-# Multi-Panel Plot Arrangements
+```
+
+## Multi-Panel Plot Arrangements
+```{r}
+
 # Combined using cowplot
 p1_p2_cowplot_combined <- plot_grid(
   p1, p2,
@@ -84,6 +89,7 @@ p1_p2_cowplot_combined <- plot_grid(
   nrow = 1, ncol = 2
 )
 p1_p2_cowplot_combined
+
 
 # Combined using ggpubr with shared legend
 p1_p2_ggpubr_combined <- ggarrange(
@@ -93,7 +99,9 @@ p1_p2_ggpubr_combined <- ggarrange(
   legend = "top"
 )
 p1_p2_ggpubr_combined
+
 ```
+
 
 When comparing `plot_grid()` from cowplot and `ggarrange()` from ggpubr, both tools successfully generate clean multi-panel figures, but `ggarrange()` produces a superior presentation for this specific pair of plots. The primary advantage of `ggarrange()` is its built-in common legend through the `common.legend = TRUE` argument, which automatically extracts and merges identical legends into a single centered legend block, here positioned at the top. This eliminates redundant legend entries, maximises the available plotting area, and provides a cleaner aesthetic with better use of space.
 
@@ -102,6 +110,14 @@ When comparing `plot_grid()` from cowplot and `ggarrange()` from ggpubr, both to
 # **Exercise 2** - Visualizing key characteristics
 
 The NHANES dataset used in this report (`cleaned_NHANES.csv`) has two variables representing ethnicity. In the current exercise, we will explore the distribution of key variables using appropriate plots and descriptive summaries.
+
+```{r}
+datatable(
+  nhanes_clean,
+  options = list(scrollX = TRUE)
+)
+```
+
 
 Each plot was given a meaningful title and appropriate axis labels. Legends were omitted from these plots because the axis labels and titles are sufficiently descriptive.
 
@@ -118,7 +134,7 @@ p_age
 
 ggsave("plot_age.png", 
        plot = p_age, 
-       path = here("figures", "Assessment3"), 
+       path = here("figures"), 
        width = 7, height = 4.5, dpi = 300
        )
 
@@ -148,7 +164,7 @@ p_gender
 ggsave(
   "plot_gender.png", 
   plot = p_gender, 
-  path = here("figures", "Assessment3"), 
+  path = here("figures"), 
   width = 6, height = 4.5, dpi = 300
   )
 
@@ -183,7 +199,7 @@ p_eth1 <- ggplot(nhanes_clean, aes(x = ethnicity_1, fill = ethnicity_1)) +
 ggsave(
   "plot_ethnicity_1.png", 
   plot = p_eth1,   
-  path = here("figures", "Assessment3"), 
+  path = here("figures"), 
   width = 7, height = 4.5
   )
 
@@ -212,7 +228,7 @@ p_eth2 <- ggplot(nhanes_clean, aes(x = ethnicity_2, fill = ethnicity_2)) +
 ggsave(
   "plot_ethnicity_2.png", 
   plot = p_eth2, 
-  path = here("figures", "Assessment3"), 
+  path = here("figures"), 
   width = 7, height = 4.5
 )
 
@@ -227,7 +243,7 @@ print(p_combined_eth)
 ggsave(
   "combined_ethnicity.png", 
   plot = p_combined_eth, 
-  path = here("figures", "Assessment3"),
+  path = here("figures"),
   width = 11, height = 5)
 ```
 
