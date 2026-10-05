@@ -1,0 +1,188 @@
+---
+title: "NHANES-Report_Week4_Exercise4"
+author: "Ida M. de Oliveira"
+date: "2026-10-04"
+output: 
+  pdf_document:
+    toc: true
+    highlight: tango
+    latex_engine: xelatex
+geometry: margin=1in
+link-citations: yes
+citecolor: red
+urlcolor: blue
+bibliography: references.bib
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE, 
+  warning = FALSE,
+  fig.align = "center"
+  )
+pacman::p_load(rio, here, janitor, dplyr, readr, skimr, tidyr, knitr, kableExtra)
+```
+
+```{r create-bib, include=FALSE}
+cat('
+@article{nhanes2017,
+  author       = {{Centers for Disease Control and Prevention (CDC)}},
+  title        = {{National Health and Nutrition Examination Survey (NHANES) Data}},
+  year         = {2013-2014; 2015-2016; 2017-2018},
+  publisher    = {U.S. Department of Health and Human Services, Centers for Disease Control and Prevention},
+  url          = {https://www.cdc.gov/nchs/nhanes/index.htm}
+}
+', file = "references.bib")
+```
+# Overview & Dataset Introduction
+
+The datasets were obtained from the **National Health and Nutrition Examination Survey (NHANES)** *<https://wwwn.cdc.gov/nchs/nhanes/>*.
+NHANES is a program of studies designed to assess the health and nutritional status of adults and children in the United States [@nhanes2017]. The resulting data are unique in that they combine interviews with physical examinations and laboratory data.
+In this report, we present a descriptive examination of a cleaned, multi-wave NHANES dataset (**Demographic Data** and **Blood Pressure Data** (from Examination Data component)), across three NHANES survey cycles.
+
+# Data Summary and Demographic Distribution
+
+The dataset comprises $29,400$ total observations spanning three survey waves: $2015$ ($N = 10,175$), $2016$ ($N = 9,970$), and $2017$ ($N = 9,254$). 
+
+Across all three waves, the gender proportion remains consistently balanced at approximately $49.1\%$ to $49.2\%$ male participants. Ethnic diversity is recorded using standard NHANES race/ethnicity categorizations, with White, Black, Mexican, Asian, Other and Other Hispanic populations represented.
+
+```{r import}
+# Import the cleaned dataset
+nhanes_data <- import(here("data", "cleaned_NHANES.csv"))
+
+# Compute overall size and male counts per wave
+sample_info <- nhanes_data %>%
+  group_by(wave_id) %>%
+  summarise(
+    Total_N = n(),
+    Male_N = sum(gender == "Male", na.rm = TRUE),
+    Male_Pct = (Male_N / Total_N) * 100,
+    .groups = "drop"
+  )
+
+# Demographic breakdown by ethnicity_2
+ethnicity_info <- nhanes_data %>%
+  group_by(wave_id, ethnicity_2) %>%
+  summarise(
+    Count = n(),
+    .groups = "drop"
+  ) %>%
+  left_join(sample_info %>% select(wave_id, Total_N), by = "wave_id") %>%
+  mutate(
+    Pct = (Count / Total_N) * 100,
+    Formatted_Ethnicity = paste0(format(Count, big.mark = ","), 
+                                 " (", sprintf("%.1f", Pct), "%)")
+  ) %>%
+  select(wave_id, ethnicity_2, Formatted_Ethnicity) %>%
+  pivot_wider(names_from = ethnicity_2, values_from = Formatted_Ethnicity)
+
+# Merge overall sample & gender info with ethnicity table
+demo_table <- sample_info %>%
+  mutate(
+    `Total Sample Size (N)` = format(Total_N, big.mark = ","),
+    `Male Count (%)` = paste0(format(Male_N, big.mark = ","), 
+                              " (", sprintf("%.1f", Male_Pct), "%)")
+  ) %>%
+  select(wave_id, `Total Sample Size (N)`, `Male Count (%)`) %>%
+  left_join(ethnicity_info, by = "wave_id") %>%
+  rename(Wave = wave_id)
+
+# Render formatted LaTeX table
+demo_table %>%
+  kable(
+    format = "latex",
+    booktabs = TRUE,
+    caption = "NHANES Sample Size, Gender, and Ethnicity Distribution Across Survey Waves",
+    col.names = c("Wave", "Total N", "Male N (%)", 
+                  "Asian", "Black", "Mexican", 
+                  "Other", "Other Hispanic", "White"),
+    align = "c"
+    ) %>%
+  kable_styling(latex_options = c("striped", "hold_position", "scale_down")) %>%
+  add_header_above(c(
+    " " = 1, 
+    "Sample Overview" = 2, 
+    "Ethnicity Breakdown (N, %)" = 6
+    )) %>%
+  column_spec(1, bold = TRUE) %>%
+  column_spec(2, bold = TRUE, color = "#1A365D") %>%
+  row_spec(0, bold = TRUE) %>%
+  footnote(general = "Percentages are calculated relative to the total wave sample size.")
+```
+
+Key highlights from the demographic summary in Table 1 include:
+
+* **Sample Size**: Wave $2015$ contained the largest cohort ($N = 10,175$), followed by Wave $2016$ ($N = 9,970$) and Wave $2017$ ($N = 9,254$).
+* **Sex Ratio**: The male representation was nearly identical across waves: $49.2\%$ in $2015$, $49.1\%$ in $2016$, and $49.2\%$ in $2017$.
+* **Ethnic Composition**: White participants comprised the largest single ethnic group ($30.8\%$ to $36.1\%$), followed by  Black participants ($21.4\%$ to $22.9\%$), Mexican American ($14.8\%$ to $19.3\%$), Asian ($10.5\%$ to $12.6\%$), and Other Hispanic ($8.9\%$ to $13.1\%$).
+
+
+
+# Systolic Blood Pressure Analysis
+
+Systolic blood pressure (SBP) readings were measured up to four times during individual examination sessions. To establish a reliable metric, an **average systolic blood pressure** was calculated for each individual by averaging all non-missing SBP values across readings $1$ through $4$.
+
+
+```{r sbp-table}
+# Calculate average SBP per participant
+nhanes_sbp <- nhanes_data %>%
+  rowwise() %>%
+  mutate(
+    avg_sbp = mean(c_across(c(
+      systolic_bp_1, systolic_bp_2, 
+      systolic_bp_3, systolic_bp_4
+      )), na.rm = TRUE)
+  ) %>%
+  ungroup() %>%
+  filter(!is.nan(avg_sbp))
+
+# Compute summary statistics by wave
+sbp_stats <- nhanes_sbp %>%
+  group_by(wave_id) %>%
+  summarise(
+    N_Valid = n(),
+    Min_SBP = min(avg_sbp),
+    Max_SBP = max(avg_sbp),
+    Median_SBP = median(avg_sbp),
+    Mean_SBP = mean(avg_sbp),
+    SD_SBP = sd(avg_sbp),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    N_Valid = format(N_Valid, big.mark = ","),
+    Min_SBP = sprintf("%.1f", Min_SBP),
+    Max_SBP = sprintf("%.1f", Max_SBP),
+    Median_SBP = sprintf("%.1f", Median_SBP),
+    Mean_SBP = sprintf("%.1f", Mean_SBP),
+    SD_SBP = sprintf("%.1f", SD_SBP)
+  )
+
+# Render formatted SBP table
+sbp_stats %>%
+  kable(
+    format = "latex",
+    booktabs = TRUE,
+    caption = "Summary Statistics of Average Systolic Blood Pressure (mmHg) by Wave",
+    col.names = c("Wave", "Valid N", "Min", "Max", "Median", "Mean", "Std Dev"),
+    align = "c"
+  ) %>%
+  kable_styling(latex_options = c("striped"), 
+                full_width = FALSE) %>%
+  add_header_above(c(" " = 2, "Systolic Blood Pressure Metrics (mmHg)" = 5)) %>%
+  column_spec(1, bold = TRUE) %>%
+  column_spec(6, bold = TRUE, color = "#2B6CB0", background = "#EDF2F7") %>%
+  row_spec(0, bold = TRUE) %>%
+  footnote(
+    general = "Average SBP is calculated across all available individual readings. SBP values are measured in mmHg."
+  )
+```
+
+As detailed in Table 2, valid blood pressure measurements were available for $21,604$ total participants ($7528$ in $2015$, $7363$ in $2016$, and $6713$ in $2017$). Analysis of average SBP reveals:
+
+1. **Mean and Median Trends**: Mean average SBP rose slightly across survey waves, increasing from $118.3 \text{ mmHg}$ in Wave $2015$ to $120.4 \text{ mmHg}$ in Wave $2016$, and $121.7 \text{ mmHg}$ in Wave $2017$. Median SBP demonstrated a parallel trend ($115.3 \text{ mmHg}$, $117.3 \text{ mmHg}$, and $118.0 \text{ mmHg}$, respectively).
+2. **Variability**: Standard deviations remained stable across $2015$ ($18.1 \text{ mmHg}$) and $2016$ ($18.4 \text{ mmHg}$), with a slight increase in $2017$ ($20.3 \text{ mmHg}$).
+3. **Range**: Minimum recorded averages ranged from $64.7$ to $74.0 \text{ mmHg}$, while maximum recorded averages ranged from $228.7$ to $234.0 \text{ mmHg}$.
+
+# References

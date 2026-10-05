@@ -1,0 +1,91 @@
+---
+title: "NHANES Dashboard"
+author: "Ida M. de Oliveira"
+date: "2026-10-04"
+output:
+  flexdashboard::flex_dashboard:
+    orientation: rows
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(rio)
+library(here)
+library(flexdashboard)
+library(tidyverse)
+library(ggplot2)
+```
+
+```{r import}
+nhanes_data <- import(here("data", "cleaned_NHANES.csv"))
+```
+
+
+Row {data-height=650}
+-----------------------------------------------------------------------
+
+### Age Distribution of NHANES Participants (2013-2018)
+
+
+```{r}
+ggplot(nhanes_data, aes(x = age)) +
+  geom_histogram(binwidth = 5, fill = "deepskyblue4", 
+                 color = "white", boundary = 0) +
+  labs(
+    title = "Age Distribution of NHANES Participants (2013-2018)",
+    x = "Age (Years)",
+    y = "Participant Count"
+  )
+
+```
+
+Row {data-height=350}
+-----------------------------------------------------------------------
+
+### Percentage of individuals 21 years old or older
+
+```{r}
+
+pct_adults <- round(mean(nhanes_data$age >= 21, na.rm = TRUE) * 100, 1)
+
+gauge(
+  value = pct_adults, 
+  min = 0, 
+  max = 100, 
+  symbol = '%',
+  gaugeSectors(
+    success = c(70, 100), 
+    warning = c(40, 69), 
+    danger = c(0, 39)
+  )
+)
+
+```
+
+
+### Percentage of individuals with an average systolic blood pressure above 120 mm Hg
+
+```{r}
+
+nhanes_sbp <- nhanes_data %>%
+  rowwise() %>%
+  mutate(
+    avg_sbp = mean(c_across(c(
+      systolic_bp_1, systolic_bp_2, 
+      systolic_bp_3, systolic_bp_4
+      )), na.rm = TRUE)
+  ) %>%
+  ungroup() %>%
+  filter(!is.nan(avg_sbp))
+
+pct_high_bp <- round(mean(nhanes_sbp$avg_sbp > 120, na.rm = TRUE) * 100, 1)
+
+valueBox(
+  value = paste0(pct_high_bp, "%"),
+  caption = "Individuals with Systolic BP > 120 mm Hg",
+  icon = "fa-heart",
+  color = "warning"
+)
+```
+
+
